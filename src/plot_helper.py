@@ -3,8 +3,15 @@
 
 import shap
 import numpy as np
+import glob
+import os
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
+
+
+def _clean_dir(path):
+    for f in glob.glob(os.path.join(path, '*')):
+        os.remove(f)
 
 
 def data_anomal_filter(data, shap_values, percentile):
@@ -28,13 +35,14 @@ def data_extremum(data, shap_values, feature_names):
 
 
 def dependence_plot(data, shap_values, feature_inds, feature_names, extremum_dict, save_path):
+    _clean_dir(save_path)
     feature_inds = list(feature_inds)
     feature_inds.reverse()
     plt.style.use('ggplot')
     plt.rcParams['figure.figsize'] = (7, 4)
     for ind in feature_inds:
         feature = feature_names[ind]
-        plt.hist2d(data[: ind], shap_values[:, ind], bins=100, range=[[extremum_dict[feature][0], extremum_dict[feature][1]], [extremum_dict[feature][2], extremum_dict[feature][3]]], norm=LogNorm(vmin=1, vmax=50000), cmap='hot_r')
+        plt.hist2d(data[:, ind], shap_values[:, ind], bins=100, range=[[extremum_dict[feature][0], extremum_dict[feature][1]], [extremum_dict[feature][2], extremum_dict[feature][3]]], norm=LogNorm(vmin=1, vmax=50000), cmap='hot_r')
         plt.colorbar()
         plt.title(feature)
         plt.xlabel('Feature value')
@@ -47,12 +55,14 @@ def dependence_plot(data, shap_values, feature_inds, feature_names, extremum_dic
         plt.close('all')
 
 
-def force_plot(expected_value, shap_values, data, save_path):
+def force_plot(expected_value, shap_values, data, save_path, max_samples=20):
+    _clean_dir(save_path)
+    n = min(shap_values.shape[0], max_samples)
     feature_names = list(data.columns)
     for i in range(len(feature_names)):
-        if type(data[feature_names[i]].iloc[0]) is np.float:
+        if isinstance(data[feature_names[i]].iloc[0], float):
             data[feature_names[i]] = data[feature_names[i]].round(decimals=2)
-    for i in range(shap_values.shape[0]):
+    for i in range(n):
         shap.force_plot(expected_value, shap_values[i, :], data.iloc[i, :], matplotlib=True, show=False)
         plt.savefig(save_path+str(i)+'.png', dpi=200, bbox_inches='tight')
         plt.close('all')
@@ -65,7 +75,7 @@ def group_plot(expected_value, shap_values, data, save_path):
     data = data.iloc[p]
     feature_names = list(data.columns)
     for i in range(len(feature_names)):
-        if type(data[feature_names[i]].iloc[0]) if np.float:
+        if isinstance(data[feature_names[i]].iloc[0], float):
             data[feature_names[i]] = data[feature_names[i]].round(decimals=2)
     group = shap.force_plot(expected_value, shap_values, data)
     shap.save_html(save_path, group)
