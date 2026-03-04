@@ -16,11 +16,18 @@ from sklearn.preprocessing import LabelEncoder
 from plot_helper import data_anomal_filter, data_extremum, dependence_plot, force_plot, group_plot
 
 
-def model_explain(data_path, label_col='label'):
-    df = pd.read_csv(data_path, index_col=0)
+def model_explain(df, label_col='label', save_root='data/titanic/shap/'):
+    """训练 LightGBM 并生成 TreeSHAP 解释图。
+
+    Args:
+        df: 已清洗的 DataFrame，包含特征列和标签列。
+        label_col: 标签列名。
+        save_root: 输出图片保存目录。
+    """
     all_labels = df[label_col].values
     all_data = df.drop([label_col], axis=1)
-    for col in all_data.select_dtypes(include=['object']).columns:
+
+    for col in all_data.select_dtypes(include=['object', 'string']).columns:
         all_data[col] = LabelEncoder().fit_transform(all_data[col])
 
     train_data, test_data, train_label, test_label = train_test_split(all_data, all_labels, test_size=0.1, random_state=42)
@@ -65,7 +72,6 @@ def model_explain(data_path, label_col='label'):
 
     data_filtered, shap_values_filtered = data_anomal_filter(all_data, shap_values, 99.95)
 
-    save_root = 'data/titanic/shap/'
     for d in ['', 'dependence', 'force', 'group']:
         os.makedirs(os.path.join(save_root, d), exist_ok=True)
 
@@ -88,6 +94,11 @@ def model_explain(data_path, label_col='label'):
 
 
 if __name__ == '__main__':
-    model_explain(data_path='data/titanic/titanic_disc.csv')
+    df = pd.read_csv('data/titanic/train.csv')
+    df = df[['Survived', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked']]
+    df['Age'] = df['Age'].fillna(df['Age'].median())
+    df['Fare'] = df['Fare'].fillna(df['Fare'].median())
+    df['Embarked'] = df['Embarked'].fillna(df['Embarked'].mode()[0])
+    model_explain(df, label_col='Survived', save_root='data/titanic/shap/')
 
 

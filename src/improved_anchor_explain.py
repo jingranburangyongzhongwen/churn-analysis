@@ -5,6 +5,7 @@ warnings.filterwarnings('ignore', message='X does not have valid feature names')
 
 from anchors import anchor_tabular
 # from anchor import anchor_tabular
+from optbinning import MDLP
 from ent_mdlp import mdlpx
 import numpy as np
 import pandas as pd
@@ -22,10 +23,23 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, mean_squared_error, classification_report
 
 
-def data_preprocess(train_path):
+def data_preprocess(train_path, fill_missing='median'):
+    """预处理 Titanic 原始数据。
+
+    Args:
+        fill_missing: 'median' 用中位数/众数填充（适合 Titanic 等缺失=未记录的场景），
+                      -1 用 -1 填充（适合游戏数据等 -1 有业务语义的场景）。
+    """
     train_df = pd.read_csv(train_path)
     train_df = train_df[['Survived', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked']]
-    train_df = train_df.fillna(value=-1)
+    if fill_missing == 'median':
+        for col in train_df.select_dtypes(include=[np.number]).columns:
+            if col != 'Survived':
+                train_df[col] = train_df[col].fillna(train_df[col].median())
+        for col in train_df.select_dtypes(include=['object']).columns:
+            train_df[col] = train_df[col].fillna(train_df[col].mode()[0])
+    else:
+        train_df = train_df.fillna(value=fill_missing)
     print(train_df.info())
     return train_df
 
@@ -34,12 +48,25 @@ def data_discretize(data, data_disc_path, data_disc_dict_path):
     y = np.array(data['Survived'])
     X = data.drop(['Survived'], axis=1)
     continuous_features = ['Age', 'SibSp', 'Parch', 'Fare']
-    feature_names = list(X.columns)
-    continuous_features_idx = [feature_names.index(feature) for feature in continuous_features]
     for feature in continuous_features:
         if X[feature].dtypes == object:
             X[feature] = X[feature].astype(float)
-    X_disc, dic, dic_all = mdlpx(X, y, continuous_features_idx, quantile=100)
+    # 用修复后的自己实现的进行mdlp离散化
+    # feature_names = list(X.columns)
+    # continuous_features_idx = [feature_names.index(feature) for feature in continuous_features]
+    # X_disc, dic, dic_all = mdlpx(X, y, continuous_features_idx, quantile=100)
+
+    # 用optbinning库进行mdlp离散化
+    dic_all = {}
+    X_disc = X.copy()
+    for feat in continuous_features:
+        n = len(y)
+        mdlp = MDLP(min_samples_leaf=max(n // 20, 2))
+        mdlp.fit(X[feat].values.astype(float), y)
+        s = list(mdlp.splits) or [float(X[feat].max())]
+        dic_all[feat] = [[float(X[feat].min())], s, [float(X[feat].max())]]
+        X_disc[feat] = np.searchsorted(s, X[feat].values)
+
     print(dic_all)
     X_disc['label'] = y
     X_disc.to_csv(data_disc_path)
@@ -295,6 +322,8 @@ def build_global_explanations(explanations_path, explainer, X, y, label_columns,
     df['uses'] = uses
     df = df.drop(['uses'], axis=1)
     df = df.drop_duplicates(['rule'])
+    min_samples = max(len(y) // 50, 10)
+    df = df[df['dataset_numbers'] >= min_samples]
     df.sort_values(by=['dataset_precision', 'dataset_coverage', 'length'], ascending=(False, False, True), inplace=True)
     for label in label_columns:
         df[df['prediction'] == label].to_csv(result_path+'{}.csv'.format(label), encoding='utf-8-sig')
@@ -420,10 +449,8 @@ if __name__ == '__main__':
     data1_disc_path = 'data/titanic/titanic_disc.csv'
     data1_disc_dict_path = 'data/titanic/titanic_disc_dict.pkl'
 
-    if not os.path.exists(data1_disc_path) or not os.path.exists(data1_disc_dict_path):
-        print('离散化文件不存在，开始预处理...')
-        df = data_preprocess(train_path)
-        data_discretize(df, data1_disc_path, data1_disc_dict_path)
+    df = data_preprocess(train_path)
+    data_discretize(df, data1_disc_path, data1_disc_dict_path)
 
     model_path = 'model/lgb_titanic.pkl'
     os.makedirs(os.path.dirname(model_path), exist_ok=True)

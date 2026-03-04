@@ -87,7 +87,7 @@ def cut_points(x, y, quantile=None):
         quantile = None
     if quantile:
         dx_quantile = np.percentile(dx, np.arange(0, 100, 100/quantile))
-    dy = pd.Series(y, index=dx.index)
+    dy = pd.Series(y).reindex(dx.index)
     depth = 0
 
     def gr(low, upp, depth=depth, x1_quantile=None):

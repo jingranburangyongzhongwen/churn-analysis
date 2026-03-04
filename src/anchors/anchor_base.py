@@ -56,8 +56,8 @@ class AnchorBaseBeam(object):
     @staticmethod
     def lucb(true_label, sample_fns, initial_stats, state, epsilon, delta, batch_size, top_n, state_global, verbose=False, verbose_every=1):
         n_features = len(sample_fns)
-        orders = np.array(initial_stats['orders'])
-        f_values = np.array(initial_stats['f_values'])
+        orders = np.array(initial_stats['orders'], dtype=object)
+        f_values = np.array(initial_stats['f_values'], dtype=object)
         n_samples = np.array(initial_stats['n_samples'])
         positives = np.array(initial_stats['positives'])
         ub = np.zeros(n_samples.shape)

@@ -40,16 +40,35 @@ def dependence_plot(data, shap_values, feature_inds, feature_names, extremum_dic
     feature_inds.reverse()
     plt.style.use('ggplot')
     plt.rcParams['figure.figsize'] = (7, 4)
+    n_samples = data.shape[0]
+
     for ind in feature_inds:
         feature = feature_names[ind]
-        plt.hist2d(data[:, ind], shap_values[:, ind], bins=100, range=[[extremum_dict[feature][0], extremum_dict[feature][1]], [extremum_dict[feature][2], extremum_dict[feature][3]]], norm=LogNorm(vmin=1, vmax=50000), cmap='hot_r')
+        x = data[:, ind]
+        y = shap_values[:, ind]
+
+        n_unique_x = len(np.unique(x))
+        n_unique_y = len(np.unique(y))
+        if n_unique_x <= 1 or n_unique_y <= 1:
+            continue
+
+        bins_x = n_unique_x if n_unique_x <= 30 else min(50, max(10, int(np.sqrt(n_samples))))
+        bins_y = n_unique_y if n_unique_y <= 30 else min(50, max(10, int(np.sqrt(n_samples))))
+
+        x_range = [extremum_dict[feature][0], extremum_dict[feature][1]]
+        y_range = [extremum_dict[feature][2], extremum_dict[feature][3]]
+
+        counts, _, _ = np.histogram2d(x, y, bins=[bins_x, bins_y], range=[x_range, y_range])
+        vmax = max(counts.max(), 2)
+
+        plt.hist2d(x, y, bins=[bins_x, bins_y], range=[x_range, y_range],
+                   norm=LogNorm(vmin=1, vmax=vmax), cmap='hot_r')
         plt.colorbar()
         plt.title(feature)
         plt.xlabel('Feature value')
         plt.ylabel('SHAP value')
 
-        plt.axis([extremum_dict[feature][0], extremum_dict[feature][1], extremum_dict[feature][2],
-                         extremum_dict[feature][3]])
+        plt.axis([x_range[0], x_range[1], y_range[0], y_range[1]])
         plt.grid()
         plt.savefig(save_path+'_'+feature+'.png', dpi=500)
         plt.close('all')
